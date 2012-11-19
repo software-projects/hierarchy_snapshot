@@ -1,0 +1,3 @@
+sqlite3:
+  :adapter: sqlite3
+  :database: spec/db/hierarchy_snapshot.sqlite3.db
