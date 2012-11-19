@@ -1,0 +1,2 @@
+module HierarchySnapshot
+end
