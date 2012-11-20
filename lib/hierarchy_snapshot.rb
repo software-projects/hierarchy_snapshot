@@ -8,3 +8,5 @@ module HierarchySnapshot
     belongs_to :user, :polymorphic => true
   end
 end
+
+require 'hierarchy_snapshot/railtie' if defined? Rails
