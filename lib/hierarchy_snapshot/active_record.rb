@@ -9,19 +9,40 @@ module HierarchySnapshot
         after_update :hierarchy_snapshot_save
 
         class_attribute :hierarchy_snapshot_config
+        attr_accessor :snapshot_user
         
-        self.hierarchy_snapshot_config = Configuration.new.tap{|c| c.instance_eval(&bl)}
+        self.hierarchy_snapshot_config = Configuration.new(true).tap{|c| c.instance_eval(&bl)}
+      end
+
+      def without_snapshot
+        old = Thread.current[:skip_hierarchy_snapshot]
+        begin
+          Thread.current[:skip_hierarchy_snapshot] = true
+          return yield
+        ensure
+          Thread.current[:skip_hierarchy_snapshot] = old
+        end
       end
     end
 
     module InstanceMethods
-      def with_snapshot
+      def with_snapshot(user=nil)
+        self.snapshot_user = user
         yield
         hierarchy_snapshot_save
       end
 
+      def without_snapshot(&bl)
+        self.class.without_snapshot(&bl)
+      end
+
       def hierarchy_snapshot_save
-        Snapshot.create :source => self, :data => hierarchy_snapshot_data
+        return if Thread.current[:skip_hierarchy_snapshot]
+
+        if hierarchy_snapshot_config.require_user? and snapshot_user.nil?
+          raise 'No snapshot user was specified, but one is required'
+        end
+        Snapshot.create :source => self, :data => hierarchy_snapshot_data, :user => snapshot_user
       end
 
       def hierarchy_snapshot_data

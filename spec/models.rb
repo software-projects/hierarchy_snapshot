@@ -18,3 +18,6 @@ class Grandchild < ActiveRecord::Base
 
   attr_accessible :name
 end
+
+class User < ActiveRecord::Base
+end

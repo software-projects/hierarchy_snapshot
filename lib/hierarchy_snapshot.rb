@@ -5,5 +5,6 @@ module HierarchySnapshot
   class Snapshot < ::ActiveRecord::Base
     self.table_name = 'hierarchy_snapshots'
     belongs_to :source, :polymorphic => true
+    belongs_to :user, :polymorphic => true
   end
 end

@@ -14,7 +14,7 @@ describe HierarchySnapshot do
 
   it 'records a copy of the object when it is saved' do
     class Parent < ActiveRecord::Base
-      keep_hierarchy_snapshot do |s|
+      keep_hierarchy_snapshot do
         attrs :name
       end
     end
@@ -30,7 +30,7 @@ describe HierarchySnapshot do
 
   it 'excludes the name when not configured' do
     class Parent < ActiveRecord::Base
-      keep_hierarchy_snapshot do |s|
+      keep_hierarchy_snapshot do
         attrs :id
       end
     end
@@ -47,7 +47,7 @@ describe HierarchySnapshot do
 
   it 'includes a child when one is configured' do
     class Parent < ActiveRecord::Base
-      keep_hierarchy_snapshot do |s|
+      keep_hierarchy_snapshot do
         attrs :name
         many :children do
           attrs :name
@@ -70,7 +70,7 @@ describe HierarchySnapshot do
 
   it 'includes a grandchild when one is configured' do
     class Parent < ActiveRecord::Base
-      keep_hierarchy_snapshot do |s|
+      keep_hierarchy_snapshot do
         attrs :name
         many :children do
           attrs :name
@@ -96,7 +96,7 @@ describe HierarchySnapshot do
 
   it 'rewrites the hierarchy after an update when the parent has no changes' do
     class Parent < ActiveRecord::Base
-      keep_hierarchy_snapshot do |s|
+      keep_hierarchy_snapshot do
         attrs :name
         many :children do
           attrs :name
@@ -116,7 +116,7 @@ describe HierarchySnapshot do
 
   it 'rewrites the hierarchy after a grandchild deletion with no other changes made' do
     class Parent < ActiveRecord::Base
-      keep_hierarchy_snapshot do |s|
+      keep_hierarchy_snapshot do
         attrs :name
         many :children do
           attrs :name
@@ -145,7 +145,7 @@ describe HierarchySnapshot do
 
   it 'requires a snapshot to be manually triggered when writing a child directly' do
     class Parent < ActiveRecord::Base
-      keep_hierarchy_snapshot do |s|
+      keep_hierarchy_snapshot do
         attrs :name
         many :children do
           attrs :name
@@ -164,6 +164,10 @@ describe HierarchySnapshot do
     }.should_not change(HierarchySnapshot::Snapshot, :count)
 
     lambda {
+      p.children.create :name => 'test6'
+    }.should_not change(HierarchySnapshot::Snapshot, :count)
+
+    lambda {
       p.with_snapshot do
         p.children[0].update_attributes! :name => 'test5'
       end
@@ -171,5 +175,71 @@ describe HierarchySnapshot do
 
     obj = last_snapshot_obj
     obj['children'][0]['name'].should == 'test5'
+  end
+
+  it 'skips creating a snapshot when required' do
+    class Parent < ActiveRecord::Base
+      keep_hierarchy_snapshot do
+        attrs :name
+      end
+    end
+
+    lambda {
+      Parent.without_snapshot do
+        Parent.create :name => 'test'
+      end
+    }.should_not change(HierarchySnapshot::Snapshot, :count)
+
+    lambda {
+      Parent.create :name => 'test2'
+    }.should change(HierarchySnapshot::Snapshot, :count).by(1)
+  end
+
+  it 'requires a user object when configured' do
+    class Parent < ActiveRecord::Base
+      keep_hierarchy_snapshot do
+        require_user
+        attrs :name
+      end
+    end
+
+    lambda {
+      Parent.create :name => 'test'
+    }.should raise_error
+
+    lambda {
+      p = Parent.new :name => 'test'
+      p.snapshot_user = User.create :name => 'testuser'
+      p.save!
+    }.should change(HierarchySnapshot::Snapshot, :count).by(1)
+
+    HierarchySnapshot::Snapshot.last.user.name.should == 'testuser'
+  end
+
+  it 'requires a user object when manually triggering a snapshot' do
+    class Parent < ActiveRecord::Base
+      keep_hierarchy_snapshot do
+        require_user
+        attrs :name
+      end
+    end
+
+    p = nil
+    Parent.without_snapshot do
+      p = Parent.create :name => 'test'
+    end
+    lambda {
+      p.with_snapshot do
+        p.children.create :name => 'test'
+      end
+    }.should raise_error
+
+    lambda {
+      p.with_snapshot(User.create(:name => 'testuser')) do
+        p.children.create :name => 'test'
+      end
+    }.should change(HierarchySnapshot::Snapshot, :count).by(1)
+
+    HierarchySnapshot::Snapshot.last.user.name.should == 'testuser'
   end
 end
